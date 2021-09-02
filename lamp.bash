@@ -113,7 +113,7 @@ firmware(){
 essenciais(){
 echo "################################################################"
 echo "Instalando pacotes essenciais"
-apt -y install wget net-tools; 
+apt -y install unzip wget net-tools; 
 echo "Pacotes essenciais instalado com sucesso"
 echo "################################################################"
 }
@@ -144,7 +144,7 @@ echo -e "Permissão alterada com sucesso!!!, continuando com o script...\n"
 php(){
 echo "################################################################"
 echo "Instalando o PHP"
-apt -y install php php-mysql libapache2-mod-php;
+apt -y install php php-mysql libapache2-mod-php php-soap php-xml php-curl php-opcache php-gd php-sqlite3 php-mbstring;
 echo "PHP instalado com sucesso"
 echo "################################################################"
 }
@@ -159,10 +159,10 @@ mv phpMyAdmin* /usr/share/phpmyadmin;
 chown -R www-data:www-data /usr/share/phpmyadmin;
 
 # Create the dababase.
-mysql -u $USER -p$PASSWORD -e "DROP DATABASE IF EXISTS phpmyadmin;";
-mysql -u $USER -p$PASSWORD -e "CREATE DATABASE phpmyadmin DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;";
-mysql -u $USER -p$PASSWORD -e "$GRANTALLPHPMYADMIN";
-mysql -u $USER -p$PASSWORD -e "$FLUSH";
+mysql -u $USER -p$PASSWORD -e "DROP DATABASE IF EXISTS phpmyadmin"
+mysql -u $USER -p$PASSWORD -e "CREATE DATABASE phpmyadmin DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+mysql -u $USER -p$PASSWORD -e "$GRANTALLPHPMYADMIN"
+mysql -u $USER -p$PASSWORD -e "$FLUSH"
 
 defaultConfig="#phpMyAdmin default Apache configuration
 
@@ -275,7 +275,9 @@ echo "##CREATE USER 'seuUsuario'@'localhost' IDENTIFIED BY 'suaSenha';"
 		mysql
 		
 		if [ "$versao" = "9" ]; then
-								
+				
+			echo "";
+			
 		elif [ "$versao" = "10" ]; then
 		
 			php
