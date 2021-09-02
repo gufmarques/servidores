@@ -1,10 +1,11 @@
 #!/bin/bash
 # ----------------------------------------------------------------------------
 #
-# Script de instalação de um WEBSERVER em sistemas operacionais Debian 9
+# Script de instalação de um WEBSERVER em sistemas operacionais Debian 9 e 10
 #
 # Autor Gustavo Marques - 2021
-# Atualizado em 01 de setembro de 2021
+# Criado em 01 de setembro de 2021
+# Atualizado em 02 de setembro de 2021
 # Licença: GPL
 # ----------------------------------------------------------------------------
 # Variável da Data Inicial para calcular o tempo de execução do script 
@@ -27,6 +28,7 @@ AGAIN=$PASSWORD
 # opção do comando FLUSH: privileges (recarregar as permissões)
 GRANTALL="GRANT ALL ON *.* TO $USER@'%' IDENTIFIED BY '$PASSWORD';"
 FLUSH="FLUSH PRIVILEGES;"
+GRANTALLPHPMYADMIN="GRANT ALL ON phpmyadmin.* TO $USER@'%' IDENTIFIED BY '$PASSWORD';"
 #
 # Variáveis de configuração do PhpMyAdmin
 ADMINUSER=$USER
@@ -100,24 +102,129 @@ deb-src http://deb.debian.org/debian/ buster-updates main contrib non-free
 	apt-get -y autoremove
 }
 
+intervalo(){
+sleep 5;
+}
+
 firmware(){
 	apt-get install firmware-linux-nonfree -y;	
 }
 
+essenciais(){
+echo "################################################################"
+echo "Instalando pacotes essenciais"
+apt -y install wget net-tools; 
+echo "Pacotes essenciais instalado com sucesso"
+echo "################################################################"
+}
+
+apache2(){
+echo "################################################################"
+echo "Instalando o Apache2"
+apt -y install apache2; 
+echo "Apache2 instalado com sucesso"
+echo "################################################################"
+}
+
+mysql(){
+echo "################################################################"
+echo "Instalando o mariadb"
+apt -y install mariadb-server;
+echo "mariadb instalado com sucesso"
+echo "################################################################"
+mysql_secure_installation
+echo "################################################################"
+echo -e "Permitindo o Root do MySQL se autenticar remotamente, aguarde..."	
+# opção do comando mysql: -u (user), -p (password) -e (execute)
+mysql -u $USER -p$PASSWORD -e "$GRANTALL" 
+mysql -u $USER -p$PASSWORD -e "$FLUSH" 
+echo -e "Permissão alterada com sucesso!!!, continuando com o script...\n"
+}
+
+php(){
+echo "################################################################"
+echo "Instalando o PHP"
+apt -y install php php-mysql libapache2-mod-php;
+echo "PHP instalado com sucesso"
+echo "################################################################"
+}
+
+phpmyadmin(){
+echo "################################################################"
+cd /tmp
+wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.zip
+unzip phpMyAdmin*;
+rm -rf phpMyAdmin*.zip;
+mv phpMyAdmin* /usr/share/phpmyadmin;
+chown -R www-data:www-data /usr/share/phpmyadmin;
+
+# Create the dababase.
+mysql -u $USER -p$PASSWORD -e "DROP DATABASE IF EXISTS phpmyadmin;";
+mysql -u $USER -p$PASSWORD -e "CREATE DATABASE phpmyadmin DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;";
+mysql -u $USER -p$PASSWORD -e "$GRANTALLPHPMYADMIN";
+mysql -u $USER -p$PASSWORD -e "$FLUSH";
+
+defaultConfig="#phpMyAdmin default Apache configuration
+
+Alias /phpmyadmin /usr/share/phpmyadmin
+<Directory /usr/share/phpmyadmin>
+    Options SymLinksIfOwnerMatch
+    DirectoryIndex index.php
+    <IfModule mod_php5.c>
+        <IfModule mod_mime.c>
+            AddType application/x-httpd-php .php
+        </IfModule>
+        <FilesMatch ".+\.php$">
+            SetHandler application/x-httpd-php
+        </FilesMatch>
+        php_value include_path .
+        php_admin_value upload_tmp_dir /var/lib/phpmyadmin/tmp
+        php_admin_value open_basedir /usr/share/phpmyadmin/:/etc/phpmyadmin/:/var/lib/phpmyadmin/:/usr/share/php/php-gettext/:/usr/share/php/php-php-gettext/:/usr/share/javascript/:/usr/share/php/tcpdf/:/usr/share/doc/phpmyadmin/:/usr/share/php/phpseclib/
+        php_admin_value mbstring.func_overload 0
+    </IfModule>
+    <IfModule mod_php.c>
+        <IfModule mod_mime.c>
+            AddType application/x-httpd-php .php
+        </IfModule>
+        <FilesMatch ".+\.php$">
+            SetHandler application/x-httpd-php
+        </FilesMatch>
+        php_value include_path .
+        php_admin_value upload_tmp_dir /var/lib/phpmyadmin/tmp
+        php_admin_value open_basedir /usr/share/phpmyadmin/:/etc/phpmyadmin/:/var/lib/phpmyadmin/:/usr/share/php/php-gettext/:/usr/share/php/php-php-gettext/:/usr/share/javascript/:/usr/share/php/tcpdf/:/usr/share/doc/phpmyadmin/:/usr/share/php/phpseclib/
+        php_admin_value mbstring.func_overload 0
+    </IfModule>
+</Directory>
+# Disallow web access to directories that don't need it
+<Directory /usr/share/phpmyadmin/templates>
+    Require all denied
+</Directory>
+<Directory /usr/share/phpmyadmin/libraries>
+    Require all denied
+</Directory>
+<Directory /usr/share/phpmyadmin/setup/lib>
+    Require all denied
+</Directory>";
+
+echo "$defaultConfig" > /etc/apache2/conf-available/phpmyadmin.conf
+mkdir -p /var/lib/phpmyadmin/tmp
+chown www-data:www-data /var/lib/phpmyadmin/tmp
+systemctl reload apache2
+}
+
 # função para instalar os aplicativos que dependerão de interação do usuário(para responder perguntas do Shell)
 lamp9(){
-
 echo "Instalando o Apache2"
 apt-get -y install apache2; 
-echo "Apache2 realizado com sucesso"
+echo "Apache2 instalado com sucesso"
 echo "################################################################"
 echo "Instalando o mariadb"
 apt-get -y install mariadb-server;
-echo "mariadb realizado com sucesso"
+echo "mariadb instalado com sucesso"
 echo "################################################################"
 echo "Instalando o PHP"
 apt-get -y install php php-fpm php-pdo php-gd php-mysqlnd php-mbstring php-common php-gettext php-curl php-cli;
-echo "PHP realizado com sucesso"
+echo "PHP instalado com sucesso"
 echo "################################################################"
 echo "Startando os serviços apache2 e mariadb"
 service apache2 restart;
@@ -147,80 +254,34 @@ echo "######GRANT ALL PRIVILEGES ON *.* TO 'phpmyadmin'@'localhost';#########"
 echo "#####################exit###############################"
 echo "####################service mariadb restart####################"
 echo "#######Caso queira criar um novo usuário, execute o comando:#######"
-echo "##CREATE USER 'seuUsuario'@'localhost' IDENTIFIED BY 'suaSenha';"
-	
-	
-	
+echo "##CREATE USER 'seuUsuario'@'localhost' IDENTIFIED BY 'suaSenha';"	
 }
 
-lamp10(){
-
-echo "################################################################"
-echo "Instalando o Apache2"
-apt -y install apache2; 
-echo "Apache2 realizado com sucesso"
-echo "################################################################"
-sleep 5
-echo "Instalando o mariadb"
-apt -y install mariadb-server;
-echo "mariadb realizado com sucesso"
-echo "################################################################"
-sleep 5
-echo "Instalando o PHP"
-apt -y install php php-mysql libapache2-mod-php;
-echo "PHP realizado com sucesso"
-echo "################################################################"
-sleep 5
-echo "Startando os serviços apache2 e mariadb"
-systemctl restart apache2;
-systemctl restart mysql;
-echo "################################################################"
-echo "Trocar senha do mysql"
-read -p "Responda os questionamentos para trocar a senha do mysql ou CTRL+C para sair..."
-mysql_secure_installation
-echo "################################################################"
-sleep 5
-echo "Instalando o phpmyadmin"
-echo "################################################################"
-"
-wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.tar.gz
-sleep 10
-tar xvf phpMyAdmin-latest-all-languages.tar.gz
-"
-echo "Startando os serviços apache2 e mysql"
-systemctl restart apache2;
-systemctl restart mysql;
-
-echo -e "Permitindo o Root do MySQL se autenticar remotamente, aguarde..."	
-	# opção do comando mysql: -u (user), -p (password) -e (execute)
-	mysql -u $USER -p$PASSWORD -e "$GRANTALL" 
-	mysql -u $USER -p$PASSWORD -e "$FLUSH" 
-echo -e "Permissão alterada com sucesso!!!, continuando com o script...\n"
-sleep 5
-	
-}
 
 
 # chama todas as funções
-
-# sequencia de if, elif e else que determinará que sources.list será preenchido	
 	if [ "$distro" = "Debian" ]; then
 		
 		atualizar
-		sleep 5
+		intervalo
 		novalista
-		sleep 5
+		intervalo
 		firmware
-		sleep 5
+		intervalo
+		essenciais
+		intervalo
+		apache2
+		intervalo
+		mysql
 		
 		if [ "$versao" = "9" ]; then
-					
-			lamp9
-			sleep 5
+								
 		elif [ "$versao" = "10" ]; then
 		
-			lamp10
-			sleep 5
+			php
+			intervalo
+			phpmyadmin
+			intervalo
 		else		
 			# nao faça nada
 			echo "Versao incompativel, script aceita apenas versoes 9 e 10.";
@@ -235,17 +296,16 @@ sleep 5
 
 # se tudo der certo
 echo -e "Instalação do LAMP-SERVER feito com Sucesso!!!"
-	# script para calcular o tempo gasto
-	# opção do comando date: +%T (Time)
-	HORAFINAL=`date +%T`
-	# opção do comando date: -u (utc), -d (date), +%s (second since 1970)
-	HORAINICIAL01=$(date -u -d "$HORAINICIAL" +"%s")
-	HORAFINAL01=$(date -u -d "$HORAFINAL" +"%s")
-	# opção do comando date: -u (utc), -d (date), 0 (string command), sec (force second), +%H (hour), %M (minute), %S (second), 
-	TEMPO=`date -u -d "0 $HORAFINAL01 sec - $HORAINICIAL01 sec" +"%H:%M:%S"`
-	# $0 (variável de ambiente do nome do comando)
-	echo -e "Tempo gasto para execução do script $0: $TEMPO"
-echo -e "Pressione <Enter> para concluir o processo."
+# script para calcular o tempo gasto
+# opção do comando date: +%T (Time)
+HORAFINAL=`date +%T`
+# opção do comando date: -u (utc), -d (date), +%s (second since 1970)
+HORAINICIAL01=$(date -u -d "$HORAINICIAL" +"%s")
+HORAFINAL01=$(date -u -d "$HORAFINAL" +"%s")
+# opção do comando date: -u (utc), -d (date), 0 (string command), sec (force second), +%H (hour), %M (minute), %S (second), 
+TEMPO=`date -u -d "0 $HORAFINAL01 sec - $HORAINICIAL01 sec" +"%H:%M:%S"`
+# $0 (variável de ambiente do nome do comando)
+echo -e "Tempo gasto para execução do script $0: $TEMPO"
 # opção do comando date: + (format), %d (day), %m (month), %Y (year 1970), %H (hour 24), %M (minute 60)
 echo -e "Fim do script $0 em: `date +%d/%m/%Y-"("%H:%M")"`\n"
 exit 0
