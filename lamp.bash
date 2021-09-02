@@ -8,48 +8,64 @@
 # Licença: GPL
 # ----------------------------------------------------------------------------
 # Variável da Data Inicial para calcular o tempo de execução do script 
-# opção do comando date: +%T (Time)
 HORAINICIAL=$(date +%T)
+# Variável para saber se o usuario é root
+USUARIO=$(id -u)
+# variável que pega o nome da distribuiçao, poderia ser tb: uname -a | awk '{print $2}', mas a sáida sera em minúsculo (debian)
+distro="$(cat /etc/issue | awk '{print $1}' | sed '/^$/d')";
+# pega a versão da distro, se pôr f2 no cut pega a variação, ex.: 7.(2), 6.(5), 12.(10), ...
+versao="$(cat /etc/issue | awk '{print $3}' | cut -d. -f1 | sed '/^$/d')";
+# Variáveis de configuração do usuário root e senha do MySQL para acesso via console e do PhpMyAdmin
+USER="root"
+PASSWORD="toor"
+AGAIN=$PASSWORD
 #
+# Variáveis de configuração e liberação da conexão remota para o usuário Root do MySQL
+# opões do comando GRANT: grant (permissão), all (todos privilégios), on (em ou na | banco ou tabela), 
+# *.* (todos os bancos/tabelas) to (para), user@'%' (usuário @ localhost), identified by (identificado 
+# por - senha do usuário)
+# opção do comando FLUSH: privileges (recarregar as permissões)
+GRANTALL="GRANT ALL ON *.* TO $USER@'%' IDENTIFIED BY '$PASSWORD';"
+FLUSH="FLUSH PRIVILEGES;"
+#
+# Variáveis de configuração do PhpMyAdmin
+ADMINUSER=$USER
+ADMIN_PASS=$PASSWORD
+APP_PASSWORD=$PASSWORD
+APP_PASS=$PASSWORD
+WEBSERVER="apache2"
+#
+# ----------------------------------------------------------------------------
 echo "################################################################"
 echo "Iniciando Auto Configuração"
 echo "################################################################"
 echo -e "Início do script $0 em: `date +%d/%m/%Y-"("%H:%M")"`\n"
 
 # só iniciará o processo de estiver logado como ROOT
-if [ "$USER" = "root" ] ; then
+if [ "$USUARIO" = "0" ] ; then
 	echo "O usuário é Root, continuando com o script...";
 else
 	echo "Você precisa ser root.\nAbortar.";
 	exit 0;
 fi
 
-# função para atualizar o sources.list
-atualizar(){
-	# com opção menos -y caso precise de interação
+# função para atualizar o sistema com o source.list atual
+atualizar(){	
 	apt-get update -y
-	apt-get upgrade -y
-	apt-get update -y
+	apt-get upgrade -y	
 }
 
 # função para alterar o sources.list
 novalista(){
-
 	# backup do sources.list
-	cp /etc/apt/sources.list /etc/apt/bkp.sources.list
+	cp /etc/apt/sources.list /etc/apt/bkp.sources.list	
 	
-	# variável que pega o nome da distribuiçao, poderia ser tb: uname -a | awk '{print $2}', mas a sáida sera em minúsculo (debian)
-	distro="$(cat /etc/issue | awk '{print $1}' | sed '/^$/d')";
-	
-	# pega a versão da distro, se pôr f2 no cut pega a variação, ex.: 7.(2), 6.(5), 12.(10), ...
-	versao="$(cat /etc/issue | awk '{print $3}' | cut -d. -f1 | sed '/^$/d')";
-	
-	# sources.list pra Debian Squeeze
+	# sources.list pra Debian 9 stretch
 	stretch="deb http://ftp.br.debian.org/debian stretch main contrib non-free
 deb http://security.debian.org/ stretch/updates main contrib non-free
 deb http://ftp.br.debian.org/debian/ stretch-updates main contrib non-free";
 
-	# sources.list para Debian Wheezy
+	# sources.list para Debian 10 buster
 	buster="deb http://deb.debian.org/debian/ buster main non-free contrib
 deb-src http://deb.debian.org/debian/ buster main non-free contrib
 
@@ -63,59 +79,35 @@ deb-src http://deb.debian.org/debian/ buster-updates main contrib non-free
 # buster-backports, previously on backports.debian.org
 #deb http://deb.debian.org/debian/ buster-backports main contrib non-free
 #deb-src http://deb.debian.org/debian/ buster-backports main contrib non-free";
-	
-	# sequencia de if, elif e else que determinará que sources.list será preenchido	
-	if [ "$distro" = "Debian" ]; then
-	
-		if [ "$versao" = "9" ]; then
 		
-			echo "$stretch" > /etc/apt/sources.list
-		# MODIFICADO deste item, tava como $distro, alterei pra $versao
-		elif [ "$versao" = "10" ]; then
+	if [ "$versao" = "9" ]; then
 		
-			echo "$buster" > /etc/apt/sources.list
+		echo "$stretch" > /etc/apt/sources.list
+		
+	elif [ "$versao" = "10" ]; then
+		
+		echo "$buster" > /etc/apt/sources.list
 			
-		else		
-			# nao faça nada
-			echo
+	else		
+		# nao faça nada
+		echo "Versao incompativel, script aceita apenas versoes 9 e 10.";
 			
-		fi		
-		
-	else
-		# deixará como está
-		echo
-		
-	fi
+	fi				
 	
 	# atualizando de novo, se houve novo source list, se não, continuará na mesma
 	apt-get -y update
 	apt-get -y upgrade
+	apt-get -y autoremove
 }
 
-padroes(){
-
-	# variável que pega o nome da distribuiçao, poderia ser tb: uname -a | awk '{print $2}', mas a sáida sera em minúsculo (debian)
-	distro="$(cat /etc/issue | awk '{print $1}' | sed '/^$/d')";
-
-	# se a distro for Debian, instalará os drives não-livres, se não, não instalará
-	[ "$distro" = "Debian" ] && apt-get install firmware-linux-nonfree -y || echo "";
-	
-	# instalando Aplicativos para Usuários e Desenvolvedores
-	
-	
-	
-	
-	
-	
-	
-	
+firmware(){
+	apt-get install firmware-linux-nonfree -y;	
 }
 
 # função para instalar os aplicativos que dependerão de interação do usuário(para responder perguntas do Shell)
-interativos(){
-	
-	
-	echo "Instalando o Apache2"
+lamp9(){
+
+echo "Instalando o Apache2"
 apt-get -y install apache2; 
 echo "Apache2 realizado com sucesso"
 echo "################################################################"
@@ -161,11 +153,85 @@ echo "##CREATE USER 'seuUsuario'@'localhost' IDENTIFIED BY 'suaSenha';"
 	
 }
 
+lamp10(){
+
+echo "################################################################"
+echo "Instalando o Apache2"
+apt -y install apache2; 
+echo "Apache2 realizado com sucesso"
+echo "################################################################"
+sleep 5
+echo "Instalando o mariadb"
+apt -y install mariadb-server;
+echo "mariadb realizado com sucesso"
+echo "################################################################"
+sleep 5
+echo "Instalando o PHP"
+apt -y install php php-mysql libapache2-mod-php;
+echo "PHP realizado com sucesso"
+echo "################################################################"
+sleep 5
+echo "Startando os serviços apache2 e mariadb"
+systemctl restart apache2;
+systemctl restart mysql;
+echo "################################################################"
+echo "Trocar senha do mysql"
+read -p "Responda os questionamentos para trocar a senha do mysql ou CTRL+C para sair..."
+mysql_secure_installation
+echo "################################################################"
+sleep 5
+echo "Instalando o phpmyadmin"
+echo "################################################################"
+"
+wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.tar.gz
+sleep 10
+tar xvf phpMyAdmin-latest-all-languages.tar.gz
+"
+echo "Startando os serviços apache2 e mysql"
+systemctl restart apache2;
+systemctl restart mysql;
+
+echo -e "Permitindo o Root do MySQL se autenticar remotamente, aguarde..."	
+	# opção do comando mysql: -u (user), -p (password) -e (execute)
+	mysql -u $USER -p$PASSWORD -e "$GRANTALL" 
+	mysql -u $USER -p$PASSWORD -e "$FLUSH" 
+echo -e "Permissão alterada com sucesso!!!, continuando com o script...\n"
+sleep 5
+	
+}
+
+
 # chama todas as funções
-atualizar
-novalista
-padroes
-interativos
+
+# sequencia de if, elif e else que determinará que sources.list será preenchido	
+	if [ "$distro" = "Debian" ]; then
+		
+		atualizar
+		sleep 5
+		novalista
+		sleep 5
+		firmware
+		sleep 5
+		
+		if [ "$versao" = "9" ]; then
+					
+			lamp9
+			sleep 5
+		elif [ "$versao" = "10" ]; then
+		
+			lamp10
+			sleep 5
+		else		
+			# nao faça nada
+			echo "Versao incompativel, script aceita apenas versoes 9 e 10.";
+			
+		fi		
+		
+	else
+		# deixará como está
+		echo "Distribuicao incompativel, script aceita apenas Debian.";
+		
+	fi
 
 # se tudo der certo
 echo -e "Instalação do LAMP-SERVER feito com Sucesso!!!"
